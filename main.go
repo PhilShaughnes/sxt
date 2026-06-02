@@ -13,13 +13,15 @@ import (
 
 var allFields = []string{"window", "front", "tab", "current", "title", "url"}
 
+var browser = "Orion"
+
 func die(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "error: "+format+"\n", args...)
 	os.Exit(1)
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `Usage: orion <command> [flags] [args]
+	fmt.Fprint(os.Stderr, `Usage: sxt <command> [flags] [args]
 
 Commands:
   list         list all windows and tabs
@@ -27,9 +29,11 @@ Commands:
   js <code>    execute JavaScript, return result
   open <url>   open URL in a new tab
   nav <url>    navigate a tab to URL
+  close        close a tab
 
 Flags:
-  -w <n>      window index, 1-based (read, js, nav; default: front window)
+  -b <name>   sxt app name (default: Orion; env: BROWSER_APP)
+  -w <id>     window ID from list   (read, js, nav; default: front window)
   -t <n>      tab index, 1-based    (read, js, nav; default: current tab)
   -o <fields> comma-separated output fields (list only)
               fields: window, front, tab, current, title, url
@@ -60,7 +64,7 @@ func target(w, t int) string {
 // runJS writes code to a temp file and executes it via AppleScript do JavaScript.
 // Using a file avoids all AppleScript string quoting issues.
 func runJS(code string, w, t int) (string, error) {
-	f, err := os.CreateTemp("", "orioncli-*.js")
+	f, err := os.CreateTemp("", "sxt-*.js")
 	if err != nil {
 		return "", fmt.Errorf("temp file: %w", err)
 	}
@@ -73,15 +77,15 @@ func runJS(code string, w, t int) (string, error) {
 
 	script := fmt.Sprintf(`
 set jsCode to (read POSIX file "%s")
-tell application "Orion"
+tell application "%s"
 	do JavaScript jsCode in %s
-end tell`, f.Name(), target(w, t))
+end tell`, f.Name(), browser, target(w, t))
 	return runAS(script)
 }
 
 func checkJSErr(out string) {
 	if strings.Contains(out, "Allow JavaScript") {
-		die("enable 'Allow JavaScript from Apple Events' in Orion's Develop menu")
+		die("enable 'Allow JavaScript from Apple Events' in %s's Develop menu", browser)
 	}
 	if strings.TrimSpace(out) == "missing value" {
 		die("tab is suspended (WebKit freezes background tabs); use 'nav <url>' to load it in the front window first")
@@ -89,8 +93,8 @@ func checkJSErr(out string) {
 }
 
 func cmdList(oFlag string) {
-	script := `
-tell application "Orion"
+	script := fmt.Sprintf(`
+tell application "%s"
 	set out to {}
 	set fw to front window
 	repeat with w in windows
@@ -114,25 +118,21 @@ tell application "Orion"
 	end repeat
 	set AppleScript's text item delimiters to linefeed
 	return out as text
-end tell`
+end tell`, browser)
 
 	raw, err := runAS(script)
 	if err != nil {
 		die("list: %s", raw)
 	}
 
-	fieldIdx := map[string]int{}
-	for i, f := range allFields {
-		fieldIdx[f] = i
-	}
-
 	var cols []int
 	if oFlag == "" {
 		fmt.Println(strings.Join(allFields, "\t"))
-		for i := range allFields {
-			cols = append(cols, i)
-		}
 	} else {
+		fieldIdx := map[string]int{}
+		for i, f := range allFields {
+			fieldIdx[f] = i
+		}
 		for _, f := range strings.Split(oFlag, ",") {
 			f = strings.TrimSpace(f)
 			idx, ok := fieldIdx[f]
@@ -145,6 +145,10 @@ end tell`
 
 	for _, line := range strings.Split(raw, "\n") {
 		if line == "" {
+			continue
+		}
+		if cols == nil {
+			fmt.Println(line)
 			continue
 		}
 		fields := strings.SplitN(line, "\t", 6)
@@ -160,7 +164,7 @@ end tell`
 }
 
 // expandAndSerialize expands all relative href/src attributes to absolute using
-// the browser's own URL resolution, then returns the full outerHTML.
+// the sxtser's own URL resolution, then returns the full outerHTML.
 const expandAndSerialize = `(function(){
 	document.querySelectorAll('[href]').forEach(function(el){try{el.setAttribute('href',el.href);}catch(e){}});
 	document.querySelectorAll('[src]').forEach(function(el){try{el.setAttribute('src',el.src);}catch(e){}});
@@ -169,11 +173,10 @@ const expandAndSerialize = `(function(){
 
 func cmdRead(w, t int) {
 	html, err := runJS(expandAndSerialize, w, t)
+	checkJSErr(html)
 	if err != nil {
-		checkJSErr(html)
 		die("read: %s", html)
 	}
-	checkJSErr(html)
 
 	converter := md.NewConverter("", true, nil)
 	markdown, err := converter.ConvertString(html)
@@ -185,11 +188,10 @@ func cmdRead(w, t int) {
 
 func cmdJS(code string, w, t int) {
 	out, err := runJS(code, w, t)
+	checkJSErr(out)
 	if err != nil {
-		checkJSErr(out)
 		die("js: %s", out)
 	}
-	checkJSErr(out)
 	fmt.Println(out)
 }
 
@@ -207,18 +209,25 @@ func urlArg(fs *flag.FlagSet) string {
 
 func cmdOpen(url string) {
 	script := fmt.Sprintf(`
-tell application "Orion"
+tell application "%s"
 	make new tab at end of tabs of front window with properties {URL:"%s"}
-end tell`, url)
+end tell`, browser, url)
 	if out, err := runAS(script); err != nil {
 		die("open: %s", out)
 	}
 }
 
 func cmdNav(url string, w, t int) {
-	script := fmt.Sprintf(`tell application "Orion" to set URL of %s to "%s"`, target(w, t), url)
+	script := fmt.Sprintf(`tell application "%s" to set URL of %s to "%s"`, browser, target(w, t), url)
 	if out, err := runAS(script); err != nil {
 		die("nav: %s", out)
+	}
+}
+
+func cmdClose(w, t int) {
+	script := fmt.Sprintf(`tell application "%s" to close %s`, browser, target(w, t))
+	if out, err := runAS(script); err != nil {
+		die("close: %s", out)
 	}
 }
 
@@ -227,41 +236,48 @@ func main() {
 		usage()
 	}
 
+	if b := os.Getenv("BROWSER_APP"); b != "" {
+		browser = b
+	}
+
 	cmd := os.Args[1]
 	rest := os.Args[2:]
 
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
-	wFlag := fs.Int("w", 0, "window index (1-based)")
+	bFlag := fs.String("b", "", "sxt app name (overrides BROWSER_APP env)")
+	wFlag := fs.Int("w", 0, "window ID from list")
 	tFlag := fs.Int("t", 0, "tab index (1-based)")
 	oFlag := fs.String("o", "", "output fields")
 
+	fs.Parse(rest)
+	if *bFlag != "" {
+		browser = *bFlag
+	}
+
 	switch cmd {
 	case "list":
-		fs.Parse(rest)
 		cmdList(*oFlag)
 	case "read":
-		fs.Parse(rest)
 		cmdRead(*wFlag, *tFlag)
 	case "js":
-		fs.Parse(rest)
 		if fs.NArg() < 1 {
 			die("js requires a code argument")
 		}
 		cmdJS(fs.Arg(0), *wFlag, *tFlag)
 	case "open":
-		fs.Parse(rest)
 		url := urlArg(fs)
 		if url == "" {
 			die("open requires a URL")
 		}
 		cmdOpen(url)
 	case "nav":
-		fs.Parse(rest)
 		url := urlArg(fs)
 		if url == "" {
 			die("nav requires a URL")
 		}
 		cmdNav(url, *wFlag, *tFlag)
+	case "close":
+		cmdClose(*wFlag, *tFlag)
 	default:
 		usage()
 	}
