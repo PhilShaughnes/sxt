@@ -1,6 +1,6 @@
 # sxt
 
-A minimal CLI for controlling macOS browsers from the shell or an agent.
+A sextant for Safari and Orion. Inspect, navigate, and automate browser tabs from the shell.
 
 Supports **Orion** (default) and **Safari**. Any browser with a compatible AppleScript dictionary should work.
 
@@ -44,6 +44,44 @@ sxt close
 # Use Safari instead of Orion
 sxt -b Safari list
 ```
+
+---
+
+## Philosophy
+
+`sxt` intentionally exposes a small set of browser-management primitives:
+
+- `list`
+- `read`
+- `js`
+- `open`
+- `nav`
+- `close`
+
+Page-specific operations are expected to be performed through `js`.
+
+If a task can be expressed in a few lines of JavaScript—extracting elements, reading raw HTML, inspecting styles, clicking controls, filling fields, collecting links, or querying application state—it generally does not need a dedicated command.
+
+For example:
+
+```sh
+# page title
+sxt js "document.title"
+
+# raw HTML
+sxt js "document.documentElement.outerHTML"
+
+# all links
+sxt js "JSON.stringify([...document.links].map(a => a.href))"
+
+# click a button
+sxt js "document.querySelector('button')?.click()"
+
+# inspect styles
+sxt js "getComputedStyle(document.body).fontFamily"
+```
+
+This keeps the CLI small while still exposing the full browser DOM when needed.
 
 ---
 
