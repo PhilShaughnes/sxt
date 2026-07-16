@@ -13,7 +13,8 @@ import (
 
 var allFields = []string{"window", "front", "tab", "current", "title", "url"}
 
-var browser = "Orion"
+// var browser = "Orion"
+var browser = "Safari"
 
 func die(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "error: "+format+"\n", args...)
@@ -32,7 +33,7 @@ Commands:
   close        close a tab
 
 Flags:
-  -b <name>   sxt app name (default: Orion; env: BROWSER_APP)
+  -b <name>   sxt app name (default: Safari; env: BROWSER_APP)
   -w <id>     window ID from list   (read, js, nav; default: front window)
   -t <n>      tab index, 1-based    (read, js, nav; default: current tab)
   -o <fields> comma-separated output fields (list only)

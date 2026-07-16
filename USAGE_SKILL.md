@@ -5,7 +5,7 @@ description: "Use when working alongside a user in their browser: reading pages 
 
 # sxt — Browser Companion
 
-macOS only. Requires scriptable browser (default: Orion; env `BROWSER_APP` or `-b` flag to override with safari).
+macOS only. Requires scriptable browser (default: Safari; env `BROWSER_APP` or `-b` flag to override with Orion).
 Enable "Allow JavaScript from Apple Events" in browser's Develop menu.
 
 

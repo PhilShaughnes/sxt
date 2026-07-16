@@ -2,7 +2,7 @@
 
 A sextant for Safari and Orion. Inspect, navigate, and automate browser tabs from the shell.
 
-Supports **Orion** (default) and **Safari**. Any browser with a compatible AppleScript dictionary should work.
+Supports **Safari** (default) and **Orion**. Any browser with a compatible AppleScript dictionary should work.
 
 ---
 
@@ -41,8 +41,8 @@ sxt open https://example.com
 # Close the current tab
 sxt close
 
-# Use Safari instead of Orion
-sxt -b Safari list
+# Use Orion instead of Safari
+sxt -b Orion list
 ```
 
 ---
@@ -113,7 +113,7 @@ sxt close             close a tab
 **Browser selection:**
 
 ```
--b <name>     sxt app name (default: Orion; env: BROWSER_APP)
+-b <name>     sxt app name (default: Safari; env: BROWSER_APP)
 ```
 
 URL for `nav` and `open` may be piped via stdin.
